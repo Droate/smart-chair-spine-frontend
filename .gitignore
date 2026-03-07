@@ -1,0 +1,32 @@
+# 各种临时文件夹
+.gradle/
+**/.gradle/
+build/
+**/build/
+.idea/
+**/.idea/
+.cxx/
+**/.cxx/
+
+# 编译产物
+*.apk
+*.ap_
+*.aab
+*.dex
+*.class
+
+# 本地配置文件（绝对不能传）
+local.properties
+*.iml
+
+# 忽略 Java 内存快照文件
+*.hprof
+
+# 确保所有层级的 build 文件夹都被忽略 (注意前后的星号和斜杠)
+
+**/intermediates/
+
+# 忽略所有的 apk 及编译产物
+*.so
+
+
