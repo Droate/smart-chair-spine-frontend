@@ -1,7 +1,12 @@
 package com.example.spineassistant.ui
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
+import android.os.Build
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -21,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -35,6 +41,44 @@ fun DeviceScanScreen(
     onNavigateToQrScan: () -> Unit, // 🔥 新增参数
     onBack: () -> Unit
 ) {
+
+    val context = LocalContext.current
+    var hasBluetoothPermission by remember { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        // 检查用户是否给了权限
+        val allGranted = permissions.values.all { it == true }
+        hasBluetoothPermission = allGranted
+        if (allGranted) {
+            // 如果给了权限，才去扫描设备
+            onStartScan()
+        } else {
+            Toast.makeText(context, "必须允许蓝牙权限才能连接设备！", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // Android 12 及以上，必须动态申请这俩
+            permissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.BLUETOOTH_SCAN,
+                    Manifest.permission.BLUETOOTH_CONNECT
+                )
+            )
+        } else {
+            // Android 11 及以下，申请定位权限即可使用蓝牙
+            permissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                )
+            )
+        }
+    }
+
+
     // 页面进入时开始扫描，退出时停止
     DisposableEffect(Unit) {
         onStartScan()

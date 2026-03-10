@@ -35,12 +35,19 @@ fun HomeScreen(
     onSaveNewPreset: (String) -> Unit,
     onToggleDeviceConnection: () -> Unit,
     onNavigateToReport: () -> Unit,
-    onNavigateToProfile: () -> Unit
+    onNavigateToProfile: () -> Unit,
+    // 新增：接收从外部传来的控制引擎
+    onExecuteAiControl: (String, (String) -> Unit) -> Unit
 ) {
     var showFeedbackSheet by remember { mutableStateOf(false) }
 
-    // 🔥 修复：添加滚动状态
+    // 修复：添加滚动状态
     val scrollState = rememberScrollState()
+
+    // 新增状态管理：用于输入框和显示 AI 回复
+    var aiInputText by remember { mutableStateOf("") }
+    var aiReplyText by remember { mutableStateOf("准备就绪。试试对我说：'想看电影了' 或 '调高一点'") }
+    var isAiThinking by remember { mutableStateOf(false) }
 
     // 多轮对话式反馈弹窗
     if (showFeedbackSheet) {
@@ -160,6 +167,72 @@ fun HomeScreen(
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 OutlinedButton(onClick = onNavigateToHeight, enabled = deviceStatus.isConnected, modifier = Modifier.weight(1f).padding(4.dp)) { Text("高度") }
                 OutlinedButton(onClick = onNavigateToAngle, enabled = deviceStatus.isConnected, modifier = Modifier.weight(1f).padding(4.dp)) { Text("角度") }
+            }
+
+            // ==========================================
+            // 新增：AI 自然语言控制面板
+            // ==========================================
+            Spacer(modifier = Modifier.height(16.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("大模型语音中枢", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // 显示 AI 的回答
+                    Text(
+                        text = aiReplyText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        minLines = 2
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(
+                            value = aiInputText,
+                            onValueChange = { aiInputText = it },
+                            placeholder = { Text("例如：我现在要办公了...") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            enabled = !isAiThinking
+                        )
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Button(
+                            onClick = {
+                                if (aiInputText.isNotBlank()) {
+                                    val input = aiInputText
+                                    aiInputText = "" // 清空输入框
+                                    isAiThinking = true
+                                    aiReplyText = "正在思考中..."
+
+                                    // 触发我们在 App 中写好的引擎
+                                    onExecuteAiControl(input) { reply ->
+                                        aiReplyText = reply
+                                        isAiThinking = false
+                                    }
+                                }
+                            },
+                            enabled = !isAiThinking && deviceStatus.isConnected
+                        ) {
+                            if (isAiThinking) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                            } else {
+                                Icon(Icons.Default.Send, contentDescription = "发送")
+                            }
+                        }
+                    }
+                }
             }
 
             // 底部留白，防止内容贴底

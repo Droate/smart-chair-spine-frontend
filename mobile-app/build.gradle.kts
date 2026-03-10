@@ -9,11 +9,11 @@ android {
     compileSdk = 34  // 必须加这一行！（新语法是 compileSdk，不是 compileSdkVersion）
 
     defaultConfig {
-        applicationId = "com.example.spineassistant"  // 你的APP包名
+        applicationId = "com.example.spineassistantv2.0"  // 你的APP包名
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "2.0"
 
         // 其他原有配置保持不变
     }

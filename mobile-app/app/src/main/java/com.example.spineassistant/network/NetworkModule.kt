@@ -90,9 +90,12 @@ interface SpineApiService {
     @POST("/api/v1/feedback")
     suspend fun uploadFeedback(@Body feedback: UserFeedbackRequest): Response<FeedbackResponse>
 
-    // 🔥🔥🔥 新增接口：获取 AI 报告分析 🔥🔥🔥
+    //  新增接口：获取 AI 报告分析
     @POST("/api/v1/report/analysis")
     suspend fun analyzeReport(@Body request: HealthReportRequest): Response<HealthAnalysisResponse>
+
+    @POST("/api/v1/chair/chat")
+    suspend fun chatControlChair(@Body request: ChatControlRequest): Response<ChatControlResponse>
 }
 
 class AuthInterceptor(private val tokenManager: TokenManager) : Interceptor {
@@ -106,13 +109,30 @@ class AuthInterceptor(private val tokenManager: TokenManager) : Interceptor {
     }
 }
 
+//新增：AI 语音控制相关数据类
+data class ChairAction(
+    @SerializedName("command") val command: String,
+    @SerializedName("parameters") val parameters: Map<String, Any> = emptyMap()
+)
+
+data class ChatControlRequest(
+    @SerializedName("user_input") val userInput: String,
+    @SerializedName("current_height") val currentHeight: Int,
+    @SerializedName("current_angle") val currentAngle: Int
+)
+
+data class ChatControlResponse(
+    @SerializedName("reply") val reply: String,
+    @SerializedName("actions") val actions: List<ChairAction> = emptyList()
+)
+
 object NetworkModule {
     private const val TAG = "NetworkModule"
     private const val SERVICE_TYPE = "_spine-api._tcp."
     private const val SERVICE_NAME_PREFIX = "Spine Assistant API"
 
     @Volatile
-    private var currentBaseUrl = "http://10.0.2.2:8000/"
+    private var currentBaseUrl = "http://192.168.107.102:8000/"
 
     private var apiServiceInstance: SpineApiService? = null
     private lateinit var tokenManager: TokenManager
@@ -161,7 +181,7 @@ object NetworkModule {
     fun init(context: Context) {
         if (!::tokenManager.isInitialized) {
             tokenManager = TokenManager(context)
-            startServiceDiscovery(context)
+            //startServiceDiscovery(context)
         }
     }
 

@@ -27,6 +27,7 @@ import com.example.spineassistant.data.FeedbackEntity
 import com.example.spineassistant.models.CustomPreset
 import com.example.spineassistant.models.DeviceStatus
 import com.example.spineassistant.models.FirmwareInfo
+import com.example.spineassistant.network.ChatControlRequest
 import com.example.spineassistant.network.NetworkModule
 import com.example.spineassistant.network.UserFeedbackRequest
 import com.example.spineassistant.ui.*
@@ -114,7 +115,80 @@ fun SpineAssistantApp() {
         NetworkModule.init(context) // 再次确保初始化（虽然上面已调用，但无副作用）
         if (NetworkModule.getTokenManager().hasToken()) "home" else "login"
     } catch (e: Exception) {
-        "login" // 异常情况（如未初始化）也进入登录页
+        Log.e("AppStart", "网络模块初始化异常", e)
+        "login"
+    }
+
+    fun executeAiControl(userInput: String, onReplyReceived: (String) -> Unit) {
+        if (connectionState != BluetoothClientManager.ConnectionState.Connected) {
+            onReplyReceived("抱歉，请先连接座椅蓝牙再使用此功能。")
+            return
+        }
+
+        scope.launch(Dispatchers.IO) {
+            try {
+                // 1. 获取当前状态发给后端
+                val request = ChatControlRequest(
+                    userInput = userInput,
+                    currentHeight = chairState.height,
+                    currentAngle = chairState.angle
+                )
+
+                // 2. 请求 LangChain 接口
+                val response = NetworkModule.getApiService().chatControlChair(request)
+
+                if (response.isSuccessful && response.body() != null) {
+                    val chatResponse = response.body()!!
+
+                    // 3. 把大模型的文字回传给 UI
+                    launch(Dispatchers.Main) {
+                        onReplyReceived(chatResponse.reply)
+                    }
+
+                    // 4. 解析并执行动作 (Action)
+                    chatResponse.actions.forEach { action ->
+                        try {
+                            when (action.command) {
+                                "APPLY_PRESET" -> {
+                                    val presetName = action.parameters["presetName"]?.toString() ?: ""
+                                    // 模拟你在 HomeScreen 里的模式切换逻辑
+                                    val targetPreset = presets.find { it.id.equals(presetName, ignoreCase = true) }
+                                    if (targetPreset != null) {
+                                        activePresetId = targetPreset.id
+                                        bluetoothManager.setCurrentMode(targetPreset.id.uppercase())
+                                        bluetoothManager.updateHeight(targetPreset.height.toInt())
+                                        delay(200) // 防止粘包
+                                        bluetoothManager.updateAngle(targetPreset.backAngle.toInt())
+                                    }
+                                }
+                                "ADJUST_HEIGHT" -> {
+                                    val h = (action.parameters["height"] as? Double)?.toInt()
+                                    if (h != null) bluetoothManager.updateHeight(h)
+                                }
+                                "ADJUST_ANGLE" -> {
+                                    val a = (action.parameters["angle"] as? Double)?.toInt()
+                                    if (a != null) bluetoothManager.updateAngle(a)
+                                }
+                                "ALERT_VIBRATION" -> {
+                                    val cmd = ControlCommand(
+                                        deviceId = "app",
+                                        command = ControlCommand.CommandType.ALERT_VIBRATION
+                                    )
+                                    bluetoothManager.sendCommand(cmd)
+                                }
+                            }
+                            delay(300) // 多条指令间的缓冲
+                        } catch (e: Exception) {
+                            Log.e("AiControl", "指令解析失败: ${action.command}", e)
+                        }
+                    }
+                } else {
+                    launch(Dispatchers.Main) { onReplyReceived("服务器开小差了，请稍后再试。") }
+                }
+            } catch (e: Exception) {
+                launch(Dispatchers.Main) { onReplyReceived("网络异常: ${e.message}") }
+            }
+        }
     }
 
     // ==================== 内部辅助函数 ====================
@@ -341,7 +415,8 @@ fun SpineAssistantApp() {
                         } else {
                             navController.navigate("scan") // 未连接则进入扫描页面
                         }
-                    }
+                    },
+                    onExecuteAiControl = { input, callback -> executeAiControl(input, callback) }
                 )
             }
 
